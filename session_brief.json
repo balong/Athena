@@ -1,0 +1,43 @@
+{
+  "mode": "planning",
+  "project_name": "Devious",
+  "goal": "Build a text-analysis app where a user can paste or write prose in an editor and view layered algorithmic highlights across many scoring systems, each mapped into five color bands derived from a mean-centered distribution.",
+  "constraints": [
+    "The editor must update realtime highlight families in under 120 ms for passages up to 1,500 words on a modern laptop.",
+    "The UI must separate analyses into realtime, short-wait, and long-wait tiers so users understand latency before toggling an algorithm.",
+    "When multiple enabled algorithms overlap on the same character range, the renderer must show only the lowest severity band among the overlapping active highlights.",
+    "The controls panel must remain minimalist and predominantly black-and-white, with color reserved for highlight chips, swatches, and legend cues.",
+    "The first shipped version must run locally in a browser-based app without requiring user accounts."
+  ],
+  "must_have_features": [
+    "Rich text input area with paste support and direct writing inside the editor.",
+    "Five-band highlight system per algorithm using one mean band and four standard-deviation-derived bands around it.",
+    "Right-side control system with grouped toggle switches by algorithm family and latency tier.",
+    "Conflict-resolution engine that computes visible highlight precedence when enabled algorithms overlap.",
+    "Realtime feedback for fast algorithms and queued/background execution for medium and slow analyses.",
+    "Legend and inspection UI so a user can understand what a visible band means for the selected algorithm."
+  ],
+  "success_criteria": [
+    "A user can paste a 1,000-word passage and see realtime algorithm families render within one interaction cycle without blocking typing.",
+    "A user can enable several overlapping highlight families and the visible result consistently follows the documented lowest-band precedence rule.",
+    "The app can expose at least 20 distinct algorithm outputs in v1 across readability, style, structure, sentiment, lexical, rhythm, and repetition categories.",
+    "The UI clearly communicates whether an analysis is instant, loading, or deferred, and users can toggle each algorithm independently.",
+    "A new user can understand the banding model and control layout without reading external documentation."
+  ],
+  "non_goals": [
+    "No collaborative editing in v1.",
+    "No user accounts, sync, or cloud document storage in v1.",
+    "No automated rewriting or generative text suggestions in v1.",
+    "No mobile-native app in v1; responsive web only."
+  ],
+  "target_users": [
+    "Writers who want dense editorial feedback without reading long diagnostic reports.",
+    "Students and researchers comparing multiple ways to score the same passage.",
+    "Editors who want to isolate weak spans by linguistic or statistical signals."
+  ],
+  "style_preferences": [
+    "Editorial, minimalist, monochrome control chrome with intentional use of color only inside the analysis system.",
+    "Sharp, data-tool feel rather than playful productivity app.",
+    "Avoid glossy gradients, skeuomorphic panels, or crowded dashboard aesthetics."
+  ]
+}

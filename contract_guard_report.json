@@ -1,0 +1,33 @@
+{
+  "pass": true,
+  "errors": [],
+  "warnings": [],
+  "required_fields": [
+    "mode",
+    "project_name",
+    "goal",
+    "constraints",
+    "must_have_features",
+    "success_criteria",
+    "non_goals",
+    "target_users",
+    "style_preferences"
+  ],
+  "detected_fields": [
+    "constraints",
+    "goal",
+    "mode",
+    "must_have_features",
+    "non_goals",
+    "project_name",
+    "style_preferences",
+    "success_criteria",
+    "target_users"
+  ],
+  "brief_path": "/Users/benlong/Documents/code/Lil_Apps/devious/session_brief.json",
+  "created_sidecars": [
+    "/Users/benlong/Documents/code/Lil_Apps/devious/acceptance_checks.json",
+    "/Users/benlong/Documents/code/Lil_Apps/devious/risk_register.json",
+    "/Users/benlong/Documents/code/Lil_Apps/devious/aesthetic_dna.json"
+  ]
+}

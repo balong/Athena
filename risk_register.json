@@ -1,0 +1,16 @@
+{
+  "risks": [
+    {
+      "id": "r-1",
+      "risk": "Scope creep from ambiguous requirements",
+      "mitigation": "Lock non-goals before coding",
+      "status": "open"
+    },
+    {
+      "id": "r-2",
+      "risk": "Aesthetic drift between variants",
+      "mitigation": "Define visual DNA tokens first",
+      "status": "open"
+    }
+  ]
+}

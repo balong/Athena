@@ -1,0 +1,19 @@
+{
+  "checks": [
+    {
+      "id": "ac-1",
+      "check": "Primary flow works on desktop",
+      "status": "pending"
+    },
+    {
+      "id": "ac-2",
+      "check": "Primary flow works on mobile",
+      "status": "pending"
+    },
+    {
+      "id": "ac-3",
+      "check": "Core must-have features are present",
+      "status": "pending"
+    }
+  ]
+}

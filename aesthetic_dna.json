@@ -1,0 +1,51 @@
+{
+  "project_name": "Devious",
+  "preset": "editorial",
+  "preset_scores": {
+    "editorial": 1,
+    "playful": 1,
+    "brutalist": 0,
+    "futurist": 0
+  },
+  "palette": {
+    "primary": "#0F2A43",
+    "secondary": "#F59E0B",
+    "accent": "#2C7DA0",
+    "surface": "#F9F7F2",
+    "text": "#0B1320"
+  },
+  "typography": {
+    "display": "Fraunces",
+    "body": "Manrope",
+    "mono": "IBM Plex Mono"
+  },
+  "layout": {
+    "density": "balanced",
+    "radius": "medium",
+    "grid": "12-column"
+  },
+  "motion": {
+    "intensity": 5,
+    "easing": "cubic-bezier(0.22, 0.61, 0.36, 1)",
+    "durations_ms": {
+      "fast": 120,
+      "base": 220,
+      "slow": 360
+    }
+  },
+  "voice": [
+    "Direct, concrete microcopy",
+    "Scannable information hierarchy",
+    "Distinct section contrast"
+  ],
+  "component_direction": {
+    "cards": "Prioritize contrast and sectional separation",
+    "buttons": "High-clarity primary action with clear hover/pressed states",
+    "background": "Use layered gradients or texture, not flat single-tone canvas"
+  },
+  "anti_style": [
+    "Avoid default Inter/Roboto-only typography stacks",
+    "Avoid generic monochrome dashboard styling",
+    "Avoid undifferentiated card grids without hierarchy"
+  ]
+}
