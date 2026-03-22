@@ -357,6 +357,92 @@ const PREPOSITIONS = new Set([
   "among",
 ]);
 
+const CASUAL_REGISTER = [
+  "yeah",
+  "okay",
+  "ok",
+  "really",
+  "pretty",
+  "kind of",
+  "sort of",
+  "stuff",
+  "you know",
+  "a lot",
+];
+
+const FORMAL_REGISTER = [
+  "therefore",
+  "moreover",
+  "thus",
+  "hence",
+  "consequently",
+  "notwithstanding",
+  "whereas",
+  "accordingly",
+];
+
+const ACADEMIC_REGISTER = [
+  "analysis",
+  "framework",
+  "significant",
+  "evidence",
+  "theory",
+  "concept",
+  "method",
+  "structure",
+  "process",
+  "indicates",
+];
+
+const PERSUASIVE_REGISTER = [
+  "must",
+  "need",
+  "should",
+  "clearly",
+  "obviously",
+  "undeniably",
+  "critical",
+  "essential",
+  "best",
+  "important",
+];
+
+const CLAIM_MARKERS = [
+  "must",
+  "should",
+  "clearly",
+  "obviously",
+  "never",
+  "always",
+  "proves",
+  "demonstrates",
+  "shows",
+  "means",
+];
+
+const SUPPORT_MARKERS = [
+  "because",
+  "since",
+  "for example",
+  "for instance",
+  "such as",
+  "evidence",
+  "data",
+  "according to",
+  "for one",
+  "for two",
+];
+
+const AMBIGUOUS_PRONOUNS = new Set([
+  "it",
+  "they",
+  "them",
+  "this",
+  "that",
+  "these",
+  "those",
+]);
+
 function sentenceWords(sentence: TextChunk, words: WordToken[]): WordToken[] {
   return words.filter((word) => word.start >= sentence.start && word.end <= sentence.end);
 }
@@ -449,6 +535,34 @@ function isAdjectiveLike(word: WordToken): boolean {
   return (
     ADJECTIVE_HINTS.has(word.normalized) ||
     /(ous|ful|ive|al|ic|less|able|ible|ary|ory|ish|like)$/.test(word.normalized)
+  );
+}
+
+function isContentCandidate(word: WordToken): boolean {
+  return (
+    word.stem.length > 2 &&
+    !STOP_WORDS.has(word.normalized) &&
+    !PRONOUNS.has(word.normalized) &&
+    !PREPOSITIONS.has(word.normalized) &&
+    !isLikelyVerb(word)
+  );
+}
+
+function collectDocumentEntities(context: AnalysisContext): Set<string> {
+  const counts = new Map<string, number>();
+
+  for (const word of context.words) {
+    if (!isContentCandidate(word)) {
+      continue;
+    }
+
+    counts.set(word.stem, (counts.get(word.stem) ?? 0) + 1);
+  }
+
+  return new Set(
+    [...counts.entries()]
+      .filter(([, count]) => count >= 2)
+      .map(([stem]) => stem),
   );
 }
 
@@ -705,6 +819,12 @@ export const ANALYSIS_REGISTRY: AnalysisDefinition[] = [
     description: "Distance between who acts and the main action.",
     helpText:
       "Shows sentences where the main action arrives late. When too much material gets wedged between the starting idea and what it actually does, readers often lose the thread.",
+    whyItMatters:
+      "Readers usually understand a sentence fastest when the opening idea reaches its action quickly.",
+    goodWhen:
+      "you want a winding or suspenseful sentence and the delay feels controlled rather than muddy.",
+    riskyWhen:
+      "the sentence keeps piling on setup and the reader forgets what the sentence was trying to say.",
     compute: (context) => ({
       algorithmId: "subject-verb-distance",
       unit: "sentence",
@@ -757,6 +877,12 @@ export const ANALYSIS_REGISTRY: AnalysisDefinition[] = [
     description: "How much the sentence leans on generic verbs.",
     helpText:
       "Highlights sentences that depend on broad, low-energy verbs like 'is,' 'have,' or 'make.' These are sometimes fine, but overuse can make prose feel flat when a more specific action could carry the line.",
+    whyItMatters:
+      "Specific verbs often carry force and imagery on their own, while generic ones tend to make prose feel generalized.",
+    goodWhen:
+      "you want a neutral, plain sentence and the verb is not where the real emphasis belongs.",
+    riskyWhen:
+      "too many sentences lean on broad verbs and the prose starts to feel flat, abstract, or repetitive.",
     compute: (context) => ({
       algorithmId: "verb-strength",
       unit: "sentence",
@@ -766,6 +892,43 @@ export const ANALYSIS_REGISTRY: AnalysisDefinition[] = [
         return {
           value: ratio(genericCount, words.length),
           explanation: `${genericCount} generic verbs across ${words.length} words.`,
+        };
+      }),
+    }),
+  },
+  {
+    id: "rhythm-monotony",
+    label: "Rhythm monotony",
+    family: "Rhythm",
+    tier: "live",
+    unit: "sentence",
+    description: "Runs of sentences that march at almost the same pace.",
+    helpText:
+      "Looks for stretches where neighboring sentences are almost the same length. That can make prose feel steady, but it can also flatten the rhythm if every sentence lands the same way.",
+    whyItMatters:
+      "Variation in sentence length is one of the simplest ways writing creates movement and emphasis.",
+    goodWhen:
+      "you want a calm, measured, highly controlled rhythm.",
+    riskyWhen:
+      "too many neighboring sentences sound the same and the prose starts to feel mechanical or sleepy.",
+    compute: (context) => ({
+      algorithmId: "rhythm-monotony",
+      unit: "sentence",
+      spans: toSentenceSpans(context, (_sentence, index) => {
+        const window = context.sentences.slice(
+          Math.max(0, index - 2),
+          Math.min(context.sentences.length, index + 3),
+        );
+        const lengths = window.map((candidate) => countWords(candidate.text));
+        const currentLength = countWords(context.sentences[index]?.text ?? "");
+        const averageDistance =
+          lengths.reduce((sum, value) => sum + Math.abs(value - currentLength), 0) /
+          Math.max(1, lengths.length);
+        const score = 1 / (1 + averageDistance);
+
+        return {
+          value: score,
+          explanation: `Neighboring sentences differ from this one by ${averageDistance.toFixed(2)} words on average.`,
         };
       }),
     }),
@@ -845,6 +1008,12 @@ export const ANALYSIS_REGISTRY: AnalysisDefinition[] = [
     description: "How much the sentence relies on vague wording.",
     helpText:
       "Looks for wording that sounds fuzzy instead of specific, like 'very,' 'some,' 'a lot,' or 'kind of.' This helps find places where the idea may need sharper detail or stronger commitment.",
+    whyItMatters:
+      "Vague wording often weakens trust because the sentence sounds less precise than the thought it may be trying to express.",
+    goodWhen:
+      "you intentionally want softness, uncertainty, or a conversational tone.",
+    riskyWhen:
+      "the sentence should feel exact or authoritative and the wording stays too blurry to land.",
     compute: (context) => ({
       algorithmId: "precision-vagueness",
       unit: "sentence",
@@ -995,6 +1164,12 @@ export const ANALYSIS_REGISTRY: AnalysisDefinition[] = [
     description: "How often descriptions pile up before the thing being described.",
     helpText:
       "Looks for places where several descriptive words stack up before the main noun. That can create richness, but it can also make prose feel ornate, blurry, or overpacked.",
+    whyItMatters:
+      "A dense pile of descriptions can slow the reader before the sentence even arrives at the main thing being talked about.",
+    goodWhen:
+      "you want a lush, detailed style and the stack creates a clear visual effect.",
+    riskyWhen:
+      "the sentence feels decorative instead of clear and the main noun arrives too late to stay sharp.",
     compute: (context) => ({
       algorithmId: "modifier-stack-density",
       unit: "sentence",
@@ -1202,6 +1377,37 @@ export const ANALYSIS_REGISTRY: AnalysisDefinition[] = [
     }),
   },
   {
+    id: "claim-support-balance",
+    label: "Claim-support balance",
+    family: "Structure",
+    tier: "short",
+    unit: "paragraph",
+    description: "How strongly a paragraph asserts compared with how much support it gives.",
+    helpText:
+      "Looks for paragraphs that make strong claims without giving reasons, examples, or evidence markers. It does not prove the paragraph is weak, but it helps find places where confidence may be outrunning support.",
+    whyItMatters:
+      "Readers usually trust a strong claim more when they can see what it rests on.",
+    goodWhen:
+      "you want a blunt thesis line and support arrives in the next paragraph or section.",
+    riskyWhen:
+      "the paragraph sounds certain, but the reader never gets a reason, example, or proof to hold onto.",
+    compute: (context) => ({
+      algorithmId: "claim-support-balance",
+      unit: "paragraph",
+      spans: toParagraphSpans(context, (paragraph) => {
+        const claimCount = countMatches(paragraph.text, CLAIM_MARKERS);
+        const supportCount = countMatches(paragraph.text, SUPPORT_MARKERS);
+        const words = paragraphWords(paragraph, context.words).length;
+        const score = ratio(claimCount - supportCount, words);
+
+        return {
+          value: score,
+          explanation: `${claimCount} claim markers and ${supportCount} support markers across ${words} words.`,
+        };
+      }),
+    }),
+  },
+  {
     id: "cohesion-score",
     label: "Cohesion score",
     family: "Cohesion",
@@ -1225,6 +1431,50 @@ export const ANALYSIS_REGISTRY: AnalysisDefinition[] = [
     }),
   },
   {
+    id: "coreference-ambiguity",
+    label: "Coreference ambiguity",
+    family: "Cohesion",
+    tier: "short",
+    unit: "sentence",
+    description: "Pronouns that may leave the reader guessing who or what they refer to.",
+    helpText:
+      "Looks for sentences where words like 'it,' 'they,' or 'this' may not point clearly to one obvious earlier thing. This helps catch places where the reader may briefly lose track of the subject.",
+    whyItMatters:
+      "Even a short moment of referential confusion can make a paragraph feel slippery or harder to trust.",
+    goodWhen:
+      "the reference is obvious from context and the pronoun keeps the prose from sounding repetitive.",
+    riskyWhen:
+      "there are several possible things the pronoun could mean and the reader has to stop to sort them out.",
+    compute: (context) => ({
+      algorithmId: "coreference-ambiguity",
+      unit: "sentence",
+      spans: toSentenceSpans(context, (sentence, index) => {
+        const words = sentenceWords(sentence, context.words);
+        const ambiguous = words.filter((word) => AMBIGUOUS_PRONOUNS.has(word.normalized));
+        const previousWords =
+          index > 0 ? sentenceWords(context.sentences[index - 1], context.words) : [];
+        const antecedentCandidates = previousWords.filter(isContentCandidate);
+        const candidateFactor =
+          antecedentCandidates.length === 0
+            ? 1
+            : antecedentCandidates.length === 1
+              ? 0.3
+              : antecedentCandidates.length <= 4
+                ? 0.75
+                : 1;
+        const score = ambiguous.length * candidateFactor;
+
+        return {
+          value: score,
+          explanation:
+            ambiguous.length === 0
+              ? "No potentially ambiguous pronouns detected."
+              : `${ambiguous.length} potentially ambiguous pronouns with ${antecedentCandidates.length} likely earlier content candidates.`,
+        };
+      }),
+    }),
+  },
+  {
     id: "dead-zone-sentences",
     label: "Dead-zone sentences",
     family: "Cohesion",
@@ -1233,6 +1483,12 @@ export const ANALYSIS_REGISTRY: AnalysisDefinition[] = [
     description: "Sentences that add little that feels new.",
     helpText:
       "Looks for sentences that mostly restate nearby material instead of moving the writing forward. These are often the places readers skim because they feel like they have already gotten the point.",
+    whyItMatters:
+      "A sentence that adds little new value can slow momentum and make a paragraph feel like it is circling instead of advancing.",
+    goodWhen:
+      "you are intentionally reinforcing a point and the repetition adds rhythm or emphasis.",
+    riskyWhen:
+      "the sentence repeats what nearby sentences already did and gives the reader no real reason to keep leaning in.",
     compute: (context) => ({
       algorithmId: "dead-zone-sentences",
       unit: "sentence",
@@ -1270,6 +1526,75 @@ export const ANALYSIS_REGISTRY: AnalysisDefinition[] = [
         };
       }),
     }),
+  },
+  {
+    id: "entity-tracking",
+    label: "Entity tracking",
+    family: "Cohesion",
+    tier: "short",
+    unit: "paragraph",
+    description: "Where key people, things, or concepts appear, vanish, or come back.",
+    helpText:
+      "Tracks recurring important nouns across the document and highlights paragraphs where those key subjects shift sharply. That helps spot turns in focus, dropped threads, or sudden reintroductions.",
+    whyItMatters:
+      "Readers follow a piece more easily when the important people, things, and ideas feel coherently threaded.",
+    goodWhen:
+      "you are intentionally transitioning to a new focus or bringing back an earlier thread for a payoff.",
+    riskyWhen:
+      "important subjects appear and disappear so abruptly that the piece starts to feel jumpy or unfocused.",
+    compute: (context) => {
+      const trackedEntities = collectDocumentEntities(context);
+
+      return {
+        algorithmId: "entity-tracking",
+        unit: "paragraph",
+        spans: toParagraphSpans(context, (paragraph, index) => {
+          const current = new Set(
+            paragraphWords(paragraph, context.words)
+              .map((word) => word.stem)
+              .filter((stem) => trackedEntities.has(stem)),
+          );
+          const previous = new Set(
+            index > 0
+              ? paragraphWords(context.paragraphs[index - 1], context.words)
+                  .map((word) => word.stem)
+                  .filter((stem) => trackedEntities.has(stem))
+              : [],
+          );
+          const earlier = new Set(
+            context.paragraphs
+              .slice(0, Math.max(0, index - 1))
+              .flatMap((candidate) =>
+                paragraphWords(candidate, context.words)
+                  .map((word) => word.stem)
+                  .filter((stem) => trackedEntities.has(stem)),
+              ),
+          );
+
+          let introduced = 0;
+          let reintroduced = 0;
+
+          for (const entity of current) {
+            if (!previous.has(entity)) {
+              introduced += 1;
+            }
+            if (!previous.has(entity) && earlier.has(entity)) {
+              reintroduced += 1;
+            }
+          }
+
+          const score = introduced + reintroduced * 0.75;
+
+          return {
+            value: score,
+            explanation:
+              current.size === 0
+                ? "No repeated key entities detected in this paragraph."
+                : `${introduced} entity shifts, including ${reintroduced} reintroductions, across ${current.size} tracked entities.`,
+          };
+        }),
+      };
+    },
   },
   {
     id: "topic-drift",
@@ -1348,6 +1673,62 @@ export const ANALYSIS_REGISTRY: AnalysisDefinition[] = [
           return {
             value: deviation,
             explanation: `Deviation from tone baseline: ${deviation.toFixed(2)}.`,
+          };
+        }),
+      };
+    },
+  },
+  {
+    id: "register-shift",
+    label: "Register shift",
+    family: "Sentiment",
+    tier: "short",
+    unit: "sentence",
+    description: "Sudden changes in how formal, casual, academic, or persuasive the language sounds.",
+    helpText:
+      "Looks for sentences that sound like they belong to a different voice than the rest of the piece. It helps catch shifts into casual, academic, salesy, or highly formal language.",
+    whyItMatters:
+      "Unexpected shifts in register can make the voice feel unstable even when each sentence works on its own.",
+    goodWhen:
+      "you want a deliberate tonal pivot and the change feels purposeful.",
+    riskyWhen:
+      "the sentence sounds like it wandered in from a different piece, audience, or mood.",
+    compute: (context) => {
+      const registerFamilies = [
+        { label: "casual", words: CASUAL_REGISTER },
+        { label: "formal", words: FORMAL_REGISTER },
+        { label: "academic", words: ACADEMIC_REGISTER },
+        { label: "persuasive", words: PERSUASIVE_REGISTER },
+      ];
+
+      const documentScores = registerFamilies.map((family) =>
+        countMatches(context.text, family.words),
+      );
+      const baselineIndex = documentScores.indexOf(Math.max(...documentScores));
+      const baselineLabel =
+        documentScores.reduce((sum, value) => sum + value, 0) === 0
+          ? "neutral"
+          : registerFamilies[baselineIndex].label;
+
+      return {
+        algorithmId: "register-shift",
+        unit: "sentence",
+        spans: toSentenceSpans(context, (sentence) => {
+          const sentenceScores = registerFamilies.map((family) =>
+            countMatches(sentence.text, family.words),
+          );
+          const strongest = Math.max(...sentenceScores);
+          const dominantIndex = sentenceScores.indexOf(strongest);
+          const dominantLabel =
+            strongest === 0 ? "neutral" : registerFamilies[dominantIndex].label;
+          const score = dominantLabel === baselineLabel ? 0 : ratio(strongest, countWords(sentence.text));
+
+          return {
+            value: score,
+            explanation:
+              dominantLabel === "neutral"
+                ? "No strong register shift detected."
+                : `This sentence reads more ${dominantLabel} than the document's overall ${baselineLabel} baseline.`,
           };
         }),
       };

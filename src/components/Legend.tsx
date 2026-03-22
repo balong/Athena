@@ -27,9 +27,15 @@ export function Legend() {
           <span>+2 sigma</span>
         </div>
       </div>
+      <div className="legend-overlap-key">
+        <div className="legend-band">
+          <span className="legend-overlap-sample">Sample</span>
+          <span>Fill = strongest signal, rails = extra overlapping signals</span>
+        </div>
+      </div>
       <p className="panel-copy">
-        When algorithms overlap, Devious only paints the lowest active band on
-        the shared span. Hidden contributors still appear in the inspector.
+        The background color is the main signal winning that span. The thin
+        colored rails at the bottom are additional signals layered underneath.
       </p>
     </section>
   );

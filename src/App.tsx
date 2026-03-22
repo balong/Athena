@@ -2,23 +2,27 @@ import {
   startTransition,
   useDeferredValue,
   useEffect,
-  useState,
   useMemo,
+  useState,
 } from "react";
 import { runAnalyses } from "./analysis/engine";
-import { buildVisibleSegments } from "./analysis/highlights";
+import { buildVisibleSegments, projectVisibleSegments } from "./analysis/highlights";
 import { ANALYSIS_REGISTRY } from "./analysis/registry";
+import { buildSummaryHotspots, buildSummarySignals } from "./analysis/summary";
 import { ControlRail } from "./components/ControlRail";
 import { EditorSurface } from "./components/EditorSurface";
 import { Inspector } from "./components/Inspector";
 import { Legend } from "./components/Legend";
+import { SummaryPanel } from "./components/SummaryPanel";
 import { SAMPLE_TEXT } from "./sampleText";
 import type {
   AnalysisDefinition,
   AnalysisFamily,
+  FocusRequest,
   AnalysisStatus,
   AnalysisTier,
   NormalizedAnalysisResult,
+  SummaryHotspot,
 } from "./types";
 
 const STORAGE_TEXT_KEY = "devious:text:v2";
@@ -133,7 +137,18 @@ export default function App() {
   );
   const [results, setResults] = useState<Record<string, NormalizedAnalysisResult>>({});
   const [statuses, setStatuses] = useState<Record<string, AnalysisStatus>>({});
+  const [liveResultsText, setLiveResultsText] = useState("");
+  const [shortResultsText, setShortResultsText] = useState("");
+  const [deepResultsText, setDeepResultsText] = useState("");
+  const [committedAnalysis, setCommittedAnalysis] = useState<{
+    text: string;
+    segments: ReturnType<typeof buildVisibleSegments>;
+  }>({
+    text,
+    segments: [],
+  });
   const [activeSegmentIndex, setActiveSegmentIndex] = useState<number | null>(null);
+  const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
   const deferredText = useDeferredValue(text);
 
   const groupedDefinitions = useMemo(() => {
@@ -188,6 +203,7 @@ export default function App() {
     startTransition(() => {
       setResults((previous) => replaceTierResults(previous, liveDefinitions, nextResults));
       setStatuses((previous) => setTierStatuses(previous, liveDefinitions, "ready"));
+      setLiveResultsText(deferredText);
     });
   }, [deferredText, liveDefinitions]);
 
@@ -200,6 +216,7 @@ export default function App() {
           replaceTierResults(previous, shortDefinitions, nextResults),
         );
         setStatuses((previous) => setTierStatuses(previous, shortDefinitions, "ready"));
+        setShortResultsText(deferredText);
       });
     }, 700);
 
@@ -215,31 +232,58 @@ export default function App() {
           replaceTierResults(previous, deepDefinitions, nextResults),
         );
         setStatuses((previous) => setTierStatuses(previous, deepDefinitions, "ready"));
+        setDeepResultsText(deferredText);
       });
     }, 1600);
 
     return () => window.clearTimeout(timeout);
   }, [deferredText, deepDefinitions]);
 
+  const analyzedSegments = useMemo(
+    () => buildVisibleSegments(deferredText, enabledIds, REGISTRY_BY_ID, results),
+    [deferredText, enabledIds, results],
+  );
+
+  const liveReady = liveDefinitions.length === 0 || liveResultsText === deferredText;
+  const shortReady = shortDefinitions.length === 0 || shortResultsText === deferredText;
+  const deepReady = deepDefinitions.length === 0 || deepResultsText === deferredText;
+  const fullyResolved = liveReady && shortReady && deepReady;
+
+  useEffect(() => {
+    if (analyzedSegments.length === 0) {
+      setCommittedAnalysis({
+        text: deferredText,
+        segments: [],
+      });
+      return;
+    }
+
+    if (fullyResolved || committedAnalysis.segments.length === 0) {
+      setCommittedAnalysis({
+        text: deferredText,
+        segments: analyzedSegments,
+      });
+    }
+  }, [analyzedSegments, committedAnalysis.segments.length, deferredText, fullyResolved]);
+
   const visibleSegments = useMemo(
     () =>
-      text === deferredText
-        ? buildVisibleSegments(deferredText, enabledIds, REGISTRY_BY_ID, results)
-        : [
-            {
-              start: 0,
-              end: text.length,
-              text,
-              band: null,
-              winnerId: null,
-              contributors: [],
-            },
-          ],
-    [deferredText, enabledIds, results, text],
+      projectVisibleSegments(committedAnalysis.segments, committedAnalysis.text, text),
+    [committedAnalysis, text],
   );
 
   const activeSegment =
     activeSegmentIndex === null ? null : visibleSegments[activeSegmentIndex] ?? null;
+
+  const summarySignals = useMemo(
+    () => buildSummarySignals(enabledIds, REGISTRY_BY_ID, results),
+    [enabledIds, results],
+  );
+
+  const summaryHotspots = useMemo(
+    () => buildSummaryHotspots(visibleSegments),
+    [visibleSegments],
+  );
 
   function toggleAlgorithm(id: string): void {
     setEnabledIds((previous) => {
@@ -292,6 +336,15 @@ export default function App() {
     );
   }
 
+  function jumpToHotspot(hotspot: SummaryHotspot): void {
+    setActiveSegmentIndex(hotspot.segmentIndex);
+    setFocusRequest({
+      start: hotspot.start,
+      end: hotspot.end,
+      token: Date.now(),
+    });
+  }
+
   return (
     <div className="app-shell">
       <main className="workspace">
@@ -303,9 +356,15 @@ export default function App() {
 
         <section className="main-grid">
           <div className="editor-column">
+            <SummaryPanel
+              signals={summarySignals}
+              hotspots={summaryHotspots}
+              onJumpToHotspot={jumpToHotspot}
+            />
             <EditorSurface
               text={text}
               segments={visibleSegments}
+              focusRequest={focusRequest}
               onTextChange={setText}
               onActiveSegmentChange={setActiveSegmentIndex}
             />

@@ -72,6 +72,9 @@ export type AnalysisDefinition = {
   unit: AnalysisUnit;
   description: string;
   helpText: string;
+  whyItMatters?: string;
+  goodWhen?: string;
+  riskyWhen?: string;
   compute: (context: AnalysisContext) => RawAnalysisResult;
 };
 
@@ -81,9 +84,16 @@ export type Contributor = {
   family: AnalysisFamily;
   tier: AnalysisTier;
   band: Band;
+  helpText: string;
+  whyItMatters?: string;
+  goodWhen?: string;
+  riskyWhen?: string;
   explanation: string;
   normalizedScore: number;
   rawScore: number;
+  meanRawScore: number;
+  stdDevRawScore: number;
+  percentile: number;
 };
 
 export type VisibleSegment = {
@@ -92,7 +102,35 @@ export type VisibleSegment = {
   text: string;
   band: Band | null;
   winnerId: string | null;
+  overlapCount: number;
+  secondaryCount: number;
   contributors: Contributor[];
 };
 
 export type AnalysisStatus = "idle" | "loading" | "ready";
+
+export type SummarySignal = {
+  algorithmId: string;
+  label: string;
+  family: AnalysisFamily;
+  count: number;
+  averageMagnitude: number;
+  strongestBand: Band | null;
+};
+
+export type SummaryHotspot = {
+  segmentIndex: number;
+  start: number;
+  end: number;
+  label: string;
+  text: string;
+  explanation: string;
+  band: Band;
+  score: number;
+};
+
+export type FocusRequest = {
+  start: number;
+  end: number;
+  token: number;
+};

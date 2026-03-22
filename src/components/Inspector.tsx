@@ -5,6 +5,26 @@ type InspectorProps = {
 };
 
 export function Inspector({ segment }: InspectorProps) {
+  function bandDescription(value: VisibleSegment["band"]): string {
+    if (value === null) {
+      return "No visible highlight";
+    }
+
+    if (value === -2) {
+      return "Much lower than this algorithm usually sees in the document";
+    }
+    if (value === -1) {
+      return "Somewhat lower than usual";
+    }
+    if (value === 0) {
+      return "Near this document's average";
+    }
+    if (value === 1) {
+      return "Somewhat higher than usual";
+    }
+    return "Much higher than usual";
+  }
+
   return (
     <section className="panel inspector-panel">
       <div className="panel-header">
@@ -15,10 +35,26 @@ export function Inspector({ segment }: InspectorProps) {
       {segment ? (
         <>
           <blockquote className="segment-quote">{segment.text}</blockquote>
-          <p className="panel-copy">
-            Visible band:{" "}
-            <strong>{segment.band === null ? "None" : `${segment.band > 0 ? "+" : ""}${segment.band}`}</strong>
-          </p>
+          <div className="inspector-overview">
+            <p className="panel-copy">
+              Visible band:{" "}
+              <strong>
+                {segment.band === null ? "None" : `${segment.band > 0 ? "+" : ""}${segment.band}`}
+              </strong>
+            </p>
+            <p className="panel-copy">
+              Overlap:{" "}
+              <strong>
+                {segment.overlapCount} signal{segment.overlapCount === 1 ? "" : "s"}
+              </strong>
+              {segment.overlapCount > 1
+                ? ` with ${segment.secondaryCount} secondary rail${
+                    segment.secondaryCount === 1 ? "" : "s"
+                  } beneath the main fill.`
+                : ""}
+            </p>
+            <p className="panel-copy">{bandDescription(segment.band)}</p>
+          </div>
           <div className="inspector-list">
             {segment.contributors.map((contributor) => (
               <article key={contributor.algorithmId} className="inspector-item">
@@ -26,9 +62,28 @@ export function Inspector({ segment }: InspectorProps) {
                   <strong>{contributor.label}</strong>
                   <span className="status-pill status-ready">{contributor.tier}</span>
                 </div>
-                <p>{contributor.explanation}</p>
+                <p className="inspector-lead">{contributor.helpText}</p>
+                <div className="inspector-guidance">
+                  <p>
+                    <strong>What this shows:</strong> {contributor.explanation}
+                  </p>
+                  <p>
+                    <strong>Why it matters:</strong>{" "}
+                    {contributor.whyItMatters ?? contributor.helpText}
+                  </p>
+                  <p>
+                    <strong>Useful when:</strong>{" "}
+                    {contributor.goodWhen ??
+                      "this pattern supports the tone, pace, or level of precision you want."}
+                  </p>
+                  <p>
+                    <strong>Risky when:</strong>{" "}
+                    {contributor.riskyWhen ??
+                      "the pattern becomes noticeable enough that readers focus on it instead of the meaning."}
+                  </p>
+                </div>
                 <small>
-                  Raw {contributor.rawScore.toFixed(2)} / z{" "}
+                  Numeric detail: raw {contributor.rawScore.toFixed(2)} / z{" "}
                   {contributor.normalizedScore.toFixed(2)}
                 </small>
               </article>
