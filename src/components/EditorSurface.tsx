@@ -16,6 +16,278 @@ type EditorSurfaceProps = {
   onActiveSegmentChange: (index: number | null) => void;
 };
 
+const STOP_WORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "but",
+  "by",
+  "for",
+  "from",
+  "had",
+  "has",
+  "have",
+  "he",
+  "her",
+  "his",
+  "i",
+  "in",
+  "is",
+  "it",
+  "its",
+  "of",
+  "on",
+  "or",
+  "that",
+  "the",
+  "their",
+  "they",
+  "this",
+  "to",
+  "was",
+  "we",
+  "were",
+  "with",
+  "you",
+]);
+
+const PRONOUNS = new Set([
+  "i",
+  "me",
+  "my",
+  "mine",
+  "we",
+  "us",
+  "our",
+  "ours",
+  "you",
+  "your",
+  "yours",
+  "he",
+  "him",
+  "his",
+  "she",
+  "her",
+  "hers",
+  "they",
+  "them",
+  "their",
+  "theirs",
+  "it",
+  "its",
+]);
+
+const HEDGE_TERMS = [
+  "maybe",
+  "perhaps",
+  "possibly",
+  "might",
+  "could",
+  "seems",
+  "appear",
+  "arguably",
+  "fairly",
+  "rather",
+  "somewhat",
+];
+
+const CERTAINTY_TERMS = [
+  "always",
+  "never",
+  "clearly",
+  "obviously",
+  "definitely",
+  "certainly",
+  "undeniably",
+  "must",
+  "prove",
+];
+
+const TRANSITION_TERMS = [
+  "however",
+  "therefore",
+  "meanwhile",
+  "instead",
+  "moreover",
+  "thus",
+  "because",
+  "although",
+  "finally",
+  "otherwise",
+];
+
+const VAGUE_TERMS = [
+  "very",
+  "really",
+  "quite",
+  "pretty",
+  "some",
+  "many",
+  "various",
+  "a lot",
+  "kind of",
+  "sort of",
+  "things",
+  "stuff",
+  "somehow",
+  "somewhat",
+  "basically",
+  "generally",
+];
+
+const GENERIC_VERBS = new Set([
+  "am",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "have",
+  "has",
+  "had",
+  "do",
+  "does",
+  "did",
+  "done",
+  "make",
+  "makes",
+  "made",
+  "get",
+  "gets",
+  "got",
+  "gotten",
+  "go",
+  "goes",
+  "went",
+  "gone",
+  "come",
+  "comes",
+  "came",
+  "put",
+  "puts",
+  "set",
+  "sets",
+  "seem",
+  "seems",
+  "seemed",
+  "become",
+  "becomes",
+  "became",
+  "feel",
+  "feels",
+  "felt",
+  "show",
+  "shows",
+  "showed",
+  "shown",
+  "give",
+  "gives",
+  "gave",
+  "given",
+  "take",
+  "takes",
+  "took",
+  "taken",
+]);
+
+const CLICHE_TERMS = [
+  "at the end of the day",
+  "needless to say",
+  "crystal clear",
+  "think outside the box",
+  "low-hanging fruit",
+  "in order to",
+];
+
+function normalizedWords(text: string): string[] {
+  return (text.toLowerCase().match(/[a-z']+/g) ?? []).filter(Boolean);
+}
+
+function uniqueMatches(matches: string[]): string[] {
+  return [...new Set(matches)];
+}
+
+function phraseMatches(text: string, phrases: string[]): string[] {
+  const haystack = text.toLowerCase();
+  return phrases.filter((phrase) => haystack.includes(phrase));
+}
+
+function repeatedWords(text: string): string[] {
+  const counts = new Map<string, number>();
+  for (const word of normalizedWords(text)) {
+    counts.set(word, (counts.get(word) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .filter(([, count]) => count > 1)
+    .map(([word]) => word);
+}
+
+function triggerTerms(contributor: Contributor, text: string): string[] {
+  const words = normalizedWords(text);
+
+  switch (contributor.algorithmId) {
+    case "stopword-density":
+      return uniqueMatches(words.filter((word) => STOP_WORDS.has(word)));
+    case "adverb-density":
+      return uniqueMatches(words.filter((word) => word.endsWith("ly")));
+    case "adjective-density":
+      return uniqueMatches(
+        words.filter((word) => /(ous|ful|ive|al|ic|less|able|ible|ary|ory|ish|like)$/.test(word)),
+      );
+    case "pronoun-density":
+      return uniqueMatches(words.filter((word) => PRONOUNS.has(word)));
+    case "punctuation-density":
+      return uniqueMatches(text.match(/[,:;!?()[\]"'-]/g) ?? []);
+    case "emphasis-punctuation":
+      return uniqueMatches(text.match(/[!?]+/g) ?? []);
+    case "hedge-density":
+      return phraseMatches(text, HEDGE_TERMS);
+    case "precision-vagueness":
+      return phraseMatches(text, VAGUE_TERMS);
+    case "certainty-density":
+      return phraseMatches(text, CERTAINTY_TERMS);
+    case "transition-density":
+      return phraseMatches(text, TRANSITION_TERMS);
+    case "generic-verb-density":
+      return uniqueMatches(words.filter((word) => GENERIC_VERBS.has(word)));
+    case "nominalization-density":
+      return uniqueMatches(words.filter((word) => /(tion|sion|ment|ness|ity|ance|ence)$/.test(word)));
+    case "cliche-density":
+      return phraseMatches(text, CLICHE_TERMS);
+    case "repeated-word-proximity":
+      return repeatedWords(text);
+    case "clause-density":
+      return uniqueMatches([
+        ...(text.match(/[,:;]/g) ?? []),
+        ...words.filter((word) =>
+          ["and", "but", "because", "although", "while", "if", "when", "which", "that"].includes(word),
+        ),
+      ]);
+    default:
+      return [];
+  }
+}
+
+function formatTriggerSummary(contributor: Contributor, text: string): string | null {
+  const matches = triggerTerms(contributor, text);
+  if (matches.length === 0) {
+    return null;
+  }
+
+  const visible = matches.slice(0, 6).map((match) => `"${match}"`);
+  const remainder = matches.length - visible.length;
+  return remainder > 0
+    ? `${visible.join(", ")} and ${remainder} more`
+    : visible.join(", ");
+}
+
 function findSegmentIndexAtOffset(
   segments: VisibleSegment[],
   offset: number,
@@ -356,18 +628,11 @@ export function EditorSurface({
                       <span className="status-pill status-ready">{comparison.badge}</span>
                     </div>
                     <p>
-                      <strong>Flagged for:</strong> {contributor.explanation}
+                      <strong>Flagged for:</strong>{" "}
+                      {formatTriggerSummary(contributor, popoverSegment.text) ??
+                        contributor.explanation}
                     </p>
                     <p>{contributor.helpText}</p>
-                    <p className="segment-popover__guidance">
-                      <strong>Helps when:</strong>{" "}
-                      {contributor.goodWhen ??
-                        "it supports the tone, pace, or emphasis you want here."}
-                      {" "}
-                      <strong>Watch for:</strong>{" "}
-                      {contributor.riskyWhen ??
-                        "it starts drawing attention to itself instead of helping the sentence."}
-                    </p>
                   </article>
                 );
               })}
